@@ -16,19 +16,21 @@ export function renderLatex(latex: string, displayMode: boolean = false): string
 
 export function renderMarkdownWithLatex(content: string): string {
   let html = content;
+  const codeBlockMarker = '__MATHPARSER_CODEBLOCK__';
+  const inlineCodeMarker = '__MATHPARSER_INLINECODE__';
 
   // Extract code blocks first to protect them
   const codeBlocks: string[] = [];
   html = html.replace(/```([\s\S]*?)```/g, (_, code) => {
     codeBlocks.push(code);
-    return `\x00CODEBLOCK${codeBlocks.length - 1}\x00`;
+    return `${codeBlockMarker}${codeBlocks.length - 1}${codeBlockMarker}`;
   });
 
   // Extract inline code
   const inlineCodes: string[] = [];
   html = html.replace(/`([^`]+)`/g, (_, code) => {
     inlineCodes.push(code);
-    return `\x00INLINECODE${inlineCodes.length - 1}\x00`;
+    return `${inlineCodeMarker}${inlineCodes.length - 1}${inlineCodeMarker}`;
   });
 
   // Display math: $$...$$
@@ -63,18 +65,18 @@ export function renderMarkdownWithLatex(content: string): string {
     .map((block) => {
       if (block.match(/^\s*<(h[1-6]|ul|ol|li|pre|blockquote)/)) return block;
       if (block.trim() === '') return '';
-      if (block.includes('\x00CODEBLOCK')) return block;
+      if (block.includes(codeBlockMarker)) return block;
       return `<p class="my-2 leading-relaxed">${block.replace(/\n/g, '<br>')}</p>`;
     })
     .join('\n');
 
   // Restore code blocks
-  html = html.replace(/\x00CODEBLOCK(\d+)\x00/g, (_, i) => {
+  html = html.replace(new RegExp(`${escapeRegExp(codeBlockMarker)}(\\d+)${escapeRegExp(codeBlockMarker)}`, 'g'), (_, i) => {
     return `<pre class="bg-slate-800 text-slate-100 rounded-lg p-4 my-3 overflow-x-auto"><code>${escapeHtml(codeBlocks[parseInt(i)])}</code></pre>`;
   });
 
   // Restore inline code
-  html = html.replace(/\x00INLINECODE(\d+)\x00/g, (_, i) => {
+  html = html.replace(new RegExp(`${escapeRegExp(inlineCodeMarker)}(\\d+)${escapeRegExp(inlineCodeMarker)}`, 'g'), (_, i) => {
     return `<code class="bg-slate-100 text-slate-800 rounded px-1.5 py-0.5 text-sm font-mono">${escapeHtml(inlineCodes[parseInt(i)])}</code>`;
   });
 
@@ -86,3 +88,8 @@ function escapeHtml(text: string): string {
   div.textContent = text;
   return div.innerHTML;
 }
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
